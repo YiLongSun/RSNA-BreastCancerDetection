@@ -75,8 +75,8 @@ def main():
     
     target_train = pd.DataFrame(target_train_dictionary)
     target_val = target_train.copy()
-    target_val = target_val[80:100]
-    target_train = target_train[0:80]
+    target_val = target_val[43766:54707]
+    target_train = target_train[0:43766]
     target_train = target_train.reset_index().drop(columns=["index"])
     target_val = target_val.reset_index().drop(columns=["index"])
     
