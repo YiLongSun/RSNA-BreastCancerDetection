@@ -24,18 +24,12 @@ class RSNA_Dataset(Dataset):
     def __getitem__(self, index):
         
         # image
-        dcm_path = self.dataframe["path"][index]
-        dcm_file = dicomsdl.open(str(dcm_path))
-        image = dcm_file.pixelData()
-        image = (image - image.min()) / (image.max() - image.min())
-        if dcm_file.getPixelDataInfo()['PhotometricInterpretation'] == "MONOCHROME1":
-            image = 1 - image
+        image = cv2.imread(self.dataframe["path"][index])
         image = cv2.resize(image, (224, 224))
         image = (image * 255).astype(np.uint8)
         image = self.transform(image)
-        out_image = np.concatenate([image, image, image], axis=0)
         
         # label
         label = self.dataframe["cancer"][index]
 
-        return out_image, label
+        return image, label

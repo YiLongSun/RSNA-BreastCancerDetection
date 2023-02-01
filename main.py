@@ -55,7 +55,7 @@ def main():
     
     # Make the training and evaluation csv file
     train_csv = "./Datasets/train.csv"
-    train_path = "./Datasets/train_images/"
+    train_path = "./Datasets/train_images_png/"
     target_train = pd.read_csv(train_csv)
 
     # For Training
@@ -64,7 +64,7 @@ def main():
     for index in range(target_train.shape[0]):
         path = train_path \
             +str(target_train["patient_id"][index].item())+"/" \
-            +str(target_train["image_id"][index].item())+".dcm"
+            +str(target_train["image_id"][index].item())+".png"
         cancer = int(target_train["cancer"][index].item())
         target_path.append(path)
         target_cancer.append(cancer)
