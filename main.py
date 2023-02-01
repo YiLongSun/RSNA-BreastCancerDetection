@@ -30,19 +30,16 @@ def train(dataloader, model, loss_fn, optimizer):
             print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
             
 def eval(dataloader, model, loss_fn):
-    size = len(dataloader.dataset)
     num_batches = len(dataloader)
     model.eval()
-    eval_loss, correct = 0, 0
+    eval_loss = 0
     with torch.no_grad():
         for X, Y in dataloader:
             X, Y = X.to(DEVICE), Y.to(DEVICE)
             pred = model(X)
             eval_loss += loss_fn(pred, Y.unsqueeze(1).float()).item()
-            correct += (pred.argmax(1) == Y).type(torch.float).sum().item()
     eval_loss /= num_batches
-    correct /= size
-    print(f"Evaluation Error: \nAccuracy: {(100*correct):>0.1f}%, Avg loss: {eval_loss:>8f}")
+    print(f"Evaluation Error: \n Avg loss: {eval_loss:>8f}")
 
 def main():
     print(f"Using {DEVICE} device")
@@ -50,7 +47,7 @@ def main():
     # Parameters
     BATCH_TRAIN = 32
     BATCH_EVAL = 16
-    EPOCHS = 20
+    EPOCHS = 1
     LR = 0.0005
     
     # Make the training and evaluation csv file
@@ -88,7 +85,7 @@ def main():
     
     model = RSNA_Model()
     model = model.to(DEVICE)
-    loss_fn = nn.BCEWithLogitsLoss()
+    loss_fn = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     
     for epoch in range(EPOCHS):
@@ -101,7 +98,7 @@ def main():
 
     # Testing
     test_csv = "./Datasets/test.csv"
-    test_path = "./Datasets/test_images/"
+    test_path = "./Datasets/test_images_png/"
     target_test = pd.read_csv(test_csv)
     out_predID = []
     out_cancer = []
@@ -109,22 +106,17 @@ def main():
     for index in range(target_test.shape[0]):
         path = test_path \
             +str(target_test["patient_id"][index].item())+"/" \
-            +str(target_test["image_id"][index].item())+".dcm"
+            +str(target_test["image_id"][index].item())+".png"
         prediction_id = str(target_test["prediction_id"][index])
-
-        dcm_file = dicomsdl.open(str(path))
-        image = dcm_file.pixelData()
-        image = (image - image.min()) / (image.max() - image.min())
-        if dcm_file.getPixelDataInfo()['PhotometricInterpretation'] == "MONOCHROME1":
-            image = 1 - image
+        
+        image = cv2.imread(path)
         image = cv2.resize(image, (224, 224))
         image = (image * 255).astype(np.uint8)
         transform = transforms.Compose([
                 transforms.ToTensor()
             ])
         image = transform(image)
-        out_image = np.concatenate([image, image, image], axis=0)
-        out_image = np.expand_dims(out_image, axis=0)
+        out_image = np.expand_dims(image, axis=0)
 
         with torch.no_grad():
             out_image = torch.from_numpy(out_image).float().to(DEVICE)
