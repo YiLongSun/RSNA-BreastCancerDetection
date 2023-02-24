@@ -1,5 +1,4 @@
 import cv2
-import dicomsdl
 import torch
 import numpy as np
 import pandas as pd
@@ -25,9 +24,9 @@ def train(dataloader, model, loss_fn, optimizer):
         loss.backward()
         optimizer.step()
 
-        if batch % 10 == 0:
-            loss, current = loss.item(), batch * len(X)
-            print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+        # if batch % 10 == 0:
+        #     loss, current = loss.item(), batch * len(X)
+        #     print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
             
 def eval(dataloader, model, loss_fn):
     num_batches = len(dataloader)
@@ -46,59 +45,71 @@ def main():
     
     # Parameters
     BATCH_TRAIN = 32
-    BATCH_EVAL = 16
-    EPOCHS = 1
-    LR = 0.0005
-    
-    # Make the training and evaluation csv file
-    train_csv = "./Datasets/train.csv"
-    train_path = "./Datasets/train_images_png/"
-    target_train = pd.read_csv(train_csv)
-
-    # For Training
-    target_path = []
-    target_cancer = []
-    for index in range(target_train.shape[0]):
-        path = train_path \
-            +str(target_train["patient_id"][index].item())+"/" \
-            +str(target_train["image_id"][index].item())+".png"
-        cancer = int(target_train["cancer"][index].item())
-        target_path.append(path)
-        target_cancer.append(cancer)
-    target_train_dictionary = {
-        "path": target_path,
-        "cancer": target_cancer
-    }
-    
-    target_train = pd.DataFrame(target_train_dictionary)
-    target_val = target_train.copy()
-    target_val = target_val[43766:54707]
-    target_train = target_train[0:43766]
-    target_train = target_train.reset_index().drop(columns=["index"])
-    target_val = target_val.reset_index().drop(columns=["index"])
-    
-    # Training
-    training_data = RSNA_Dataset(target_train)
-    val_data = RSNA_Dataset(target_val, is_train = False)
-    train_dataloader = DataLoader(training_data, batch_size=BATCH_TRAIN, shuffle=True)
-    val_dataloader = DataLoader(val_data, batch_size=BATCH_EVAL, shuffle=True)
+    BATCH_EVAL = 32
+    EPOCHS = 100
+    LR = 0.00001
     
     model = RSNA_Model()
     model = model.to(DEVICE)
-    loss_fn = nn.MSELoss()
+    loss_fn = nn.BCEWithLogitsLoss(pos_weight= torch.tensor([3.0]).to(DEVICE))
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     
     for epoch in range(EPOCHS):
         print("\n")
+
+        # Make the training and evaluation csv file
+        train_csv = "./Datasets/train.csv"
+        train_path = "./Datasets/train_images_png_1024/"
+        target_train = pd.read_csv(train_csv)
+        count_for_normal_patient = 0
+
+        # For Training
+        target_path = []
+        target_cancer = []
+        target_laterality=[]
+        for index in range(target_train.shape[0]):
+            path = train_path \
+                +str(target_train["patient_id"][index].item())+"/" \
+                +str(target_train["image_id"][index].item())+".png"
+            cancer = int(target_train["cancer"][index].item())
+            laterality = target_train["laterality"][index]
+            if (cancer == 0 and count_for_normal_patient < 800):
+                target_path.append(path)
+                target_cancer.append(cancer)
+                target_laterality.append(laterality)
+                count_for_normal_patient += 1
+
+            if (cancer == 1):
+                target_path.append(path)
+                target_cancer.append(cancer)
+                target_laterality.append(laterality)
+
+        target_train_dictionary = {
+            "path": target_path,
+            "cancer": target_cancer,
+            "laterality": target_laterality
+        }
+        
+        target_train = pd.DataFrame(target_train_dictionary)
+        target_val = target_train.copy()
+        target_train = target_train.reset_index().drop(columns=["index"])
+        target_val = target_val.reset_index().drop(columns=["index"])
+        
+        # Training
+        training_data = RSNA_Dataset(target_train)
+        val_data = RSNA_Dataset(target_val, is_train = False)
+        train_dataloader = DataLoader(training_data, batch_size=BATCH_TRAIN, shuffle=True)
+        val_dataloader = DataLoader(val_data, batch_size=BATCH_EVAL, shuffle=True)
+
         print(f"Epoch {epoch+1}\n-------------------------------")
         train(train_dataloader, model, loss_fn, optimizer)
-        eval(val_dataloader, model, loss_fn)
-        torch.save(model.state_dict(), f"./Models/model_{epoch}.pth")
+        # eval(val_dataloader, model, loss_fn)
+        # torch.save(model.state_dict(), f"./Models/model_{epoch}.pth")
     print("Training Done!")
 
     # Testing
     test_csv = "./Datasets/test.csv"
-    test_path = "./Datasets/test_images_png/"
+    test_path = "./Datasets/test_images_png_1024/"
     target_test = pd.read_csv(test_csv)
     out_predID = []
     out_cancer = []
@@ -110,7 +121,7 @@ def main():
         prediction_id = str(target_test["prediction_id"][index])
         
         image = cv2.imread(path)
-        image = cv2.resize(image, (224, 224))
+        image = cv2.resize(image, (512, 512))
         image = (image * 255).astype(np.uint8)
         transform = transforms.Compose([
                 transforms.ToTensor()
